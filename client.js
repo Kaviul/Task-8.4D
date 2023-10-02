@@ -7,15 +7,6 @@ const client = mqtt.connect('mqtt://broker.hivemq.com:1883', {
      password : process.env.PASSWORD 
    });
 
-// const brokerUrl = 'mqtt://broker.hivemq.com:1883';
-// const options = {
-//   clientId: 'cep_processor', // Choose a unique client ID
-// };
-
-//const client = mqtt.connect(brokerUrl, options);
-
-
-
 // Initialize data structures to track drone status
 const droneBatLev = {};
 const droneLastLoc = {};
@@ -27,7 +18,7 @@ client.on('connect', () => {
 
   const topic1 = 'drones/+/battery'
   const topic2 = 'drones/+/altitude'
-  const topic3 = 'drones/+/lat_long'
+  const topic3 = 'drones/+/longitude-latitude'
 
   // Subscribe to drone data topics
   client.subscribe(topic1);
@@ -35,23 +26,24 @@ client.on('connect', () => {
   client.subscribe(topic3);
 });
 
-// Callback when a message is received
+// Callback when a message is received and the actual topics are printed
 client.on('message', (topic, message) => {
+ console.log(`Message on ${topic}: ${message}`)
   const topicSplits = topic.split('/');
   const droneId = topicSplits[1];
 
-  // Process drone data based on topic
+  // Processing drone data based on topic
   if (topicSplits[2] === 'battery') {
-    // Update battery level for the drone
+    // Updating battery level for the drone
     droneBatLev[droneId] = parseInt(message.toString(), 10);
 
-    // Check for Scenario a: Battery levels below 10
+    // Checking for Scenario a: Battery levels below 10
     checkBatLev();
   } else if (topicSplits[2] === 'altitude') {
-    // Check for Scenario b: Stationary drones at altitude above 100
+    // Checking for Scenario b: Stationary drones at altitude above 100
     checkStatDrones(droneId, parseInt(message.toString(), 10));
   } else if (topicSplits[2] === 'lat_long') {
-    // Update last known location and time for the drone
+    // Updating last known location and time for the drone
     droneLastLoc[droneId] = message.toString();
     droneLastUpdTime[droneId] = new Date();
   }
@@ -64,7 +56,6 @@ function checkBatLev() {
   );
 
   if (lowBatDrones.length > 2) {
-    // Publish alert for Scenario a
     client.publish('alerts', 'Alert: More than two drones have low battery levels.')
     console.log("Alert published: More than two drones have low battery levels ")
   }
@@ -80,19 +71,18 @@ function checkStatDrones(droneId, altitude) {
     const timeDiff = (currentTime - lastUpdateTime) / 60000; // in minutes
 
     if (timeDiff > 10) {
-      // Publish alert for Scenario b
       client.publish('alerts', `Alert: Drone ${droneId} has been stationary above 100m for more than 10 minutes at ${location}`);
       console.log(`Drone ${droneId} has been stationary above 100m for more than 10 minutes at ${location}`)
     }
   }
 }
 
-// Subscribe to alerts (if needed)
+// Subscribing to alerts
 client.subscribe('alerts');
 
 // Callback when an alert message is received
 client.on('message', (topic, message, droneId) => {
   const droneID = JSON.stringify(droneId)
-  console.log(`Received alert: ${droneID.toString()} ${message.toString()}`);
-  // Implement your logic to handle alerts here
+ console.log(`Received alert: ${droneID.toString()} ${message.toString()}`);
+  
 });
